@@ -3,7 +3,8 @@
 
 declare module 'virtual:astro-cloudflare:config' {
 	export const sessionKVBindingName: string;
-	// Additional exports can be added here in the future
+	export const compileImageConfig: import('./src/vite-plugin-config.js').CompileImageConfig | null;
+	export const isPrerender: boolean;
 }
 
 declare namespace Cloudflare {
@@ -18,3 +19,5 @@ declare namespace Cloudflare {
 interface Env extends Cloudflare.Env {}
 type ImagesBinding = import('@cloudflare/workers-types').ImagesBinding;
 type Fetcher = import('@cloudflare/workers-types').Fetcher;
+
+declare var astroCloudflareOptions: import('@cloudflare/vite-plugin').PluginConfig;

@@ -3,7 +3,7 @@ import { IncomingMessage } from 'node:http';
 import type * as vite from 'vite';
 import { isRunnableDevEnvironment, type RunnableDevEnvironment } from 'vite';
 import { toFallbackType } from '../core/app/common.js';
-import { toRoutingStrategy } from '../core/app/index.js';
+import { toRoutingStrategy } from '../core/app/entrypoints/index.js';
 import type { SSRManifest, SSRManifestCSP, SSRManifestI18n } from '../core/app/types.js';
 import { ASTRO_VITE_ENVIRONMENT_NAMES } from '../core/constants.js';
 import {
@@ -22,14 +22,16 @@ import { AstroError, AstroErrorData } from '../core/errors/index.js';
 import type { Logger } from '../core/logger/core.js';
 import { NOOP_MIDDLEWARE_FN } from '../core/middleware/noop-middleware.js';
 import { createViteLoader } from '../core/module-loader/index.js';
+import { resolveMiddlewareMode } from '../integrations/adapter-utils.js';
 import { SERIALIZED_MANIFEST_ID } from '../manifest/serialized.js';
 import type { AstroSettings } from '../types/astro.js';
-import { ASTRO_DEV_APP_ID } from '../vite-plugin-app/index.js';
+import { ASTRO_DEV_SERVER_APP_ID } from '../vite-plugin-app/index.js';
 import { baseMiddleware } from './base.js';
 import { createController } from './controller.js';
 import { recordServerError } from './error.js';
 import { setRouteError } from './server-state.js';
 import { routeGuardMiddleware } from './route-guard.js';
+import { secFetchMiddleware } from './sec-fetch.js';
 import { trailingSlashMiddleware } from './trailing-slash.js';
 import { sessionConfigToManifest } from '../core/session/utils.js';
 
@@ -60,7 +62,7 @@ export default function createVitePluginAstroServer({
 			const { default: createAstroServerApp } =
 				await environment.runner.import<
 					typeof import('../vite-plugin-app/createAstroServerApp.js')
-				>(ASTRO_DEV_APP_ID);
+				>(ASTRO_DEV_SERVER_APP_ID);
 			const controller = createController({ loader });
 			const { handler } = await createAstroServerApp(controller, settings, loader, logger);
 			const { manifest } = await environment.runner.import<{
@@ -106,6 +108,11 @@ export default function createVitePluginAstroServer({
 				viteServer.middlewares.stack.unshift({
 					route: '',
 					handle: routeGuardMiddleware(settings),
+				});
+				// Validate Sec-Fetch metadata headers to restrict cross-origin subresource requests
+				viteServer.middlewares.stack.unshift({
+					route: '',
+					handle: secFetchMiddleware(logger, settings.config.security?.allowedDomains),
 				});
 
 				// Note that this function has a name so other middleware can find it.
@@ -177,6 +184,7 @@ export async function createDevelopmentManifest(settings: AstroSettings): Promis
 		compressHTML: settings.config.compressHTML,
 		assetsDir: settings.config.build.assets,
 		serverLike: settings.buildOutput === 'server',
+		middlewareMode: resolveMiddlewareMode(settings.adapter?.adapterFeatures),
 		assets: new Set(),
 		entryModules: {},
 		routes: [],
@@ -192,6 +200,9 @@ export async function createDevelopmentManifest(settings: AstroSettings): Promis
 		i18n: i18nManifest,
 		checkOrigin:
 			(settings.config.security?.checkOrigin && settings.buildOutput === 'server') ?? false,
+		actionBodySizeLimit: settings.config.security?.actionBodySizeLimit
+			? settings.config.security.actionBodySizeLimit
+			: 1024 * 1024, // 1mb default
 		key: hasEnvironmentKey() ? getEnvironmentKey() : createKey(),
 		middleware() {
 			return {
@@ -200,6 +211,11 @@ export async function createDevelopmentManifest(settings: AstroSettings): Promis
 		},
 		sessionConfig: sessionConfigToManifest(settings.config.session),
 		csp,
+		image: {
+			objectFit: settings.config.image.objectFit,
+			objectPosition: settings.config.image.objectPosition,
+			layout: settings.config.image.layout,
+		},
 		devToolbar: {
 			enabled:
 				settings.config.devToolbar.enabled &&
@@ -209,5 +225,10 @@ export async function createDevelopmentManifest(settings: AstroSettings): Promis
 			placement: settings.config.devToolbar.placement,
 		},
 		logLevel: settings.logLevel,
+		shouldInjectCspMetaTags: false,
+		experimentalQueuedRendering: {
+			enabled: !!settings.config.experimental?.queuedRendering,
+			poolSize: settings.config.experimental?.queuedRendering?.poolSize ?? 1000,
+		},
 	};
 }

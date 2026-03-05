@@ -1,5 +1,11 @@
 # @astrojs/db
 
+## 0.19.0-beta.4
+
+### Patch Changes
+
+- [#14589](https://github.com/withastro/astro/pull/14589) [`7038f07`](https://github.com/withastro/astro/commit/7038f0700898a17cb87b5a2e408480c1226a47f4) Thanks [@43081j](https://github.com/43081j)! - Improves CLI styling
+
 ## 0.19.0-beta.3
 
 ### Patch Changes
@@ -396,7 +402,7 @@
 
 - [#11304](https://github.com/withastro/astro/pull/11304) [`2e70741`](https://github.com/withastro/astro/commit/2e70741362afc1e7d03c8b2a9d8edb8466dfe9c3) Thanks [@Fryuni](https://github.com/Fryuni)! - Removes the `AstroDbIntegration` type
 
-  Astro integration hooks can now be extended and as such `@astrojs/db` no longer needs to declare it's own integration type. Using `AstroIntegration` will have the same type.
+  Astro integration hooks can now be extended and as such `@astrojs/db` no longer needs to declare its own integration type. Using `AstroIntegration` will have the same type.
 
   If you were using the `AstroDbIntegration` type, apply this change to your integration code:
 
